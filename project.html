@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melodia - Music Recommendation</title>
+    <link rel="stylesheet" href="/view.css">
+</head>
+<body>
+    <!-- Header -->
+    <div class="app-header">
+        <div class="brand">
+            <div class="logo">♪</div>
+            <div class="name">Melodia</div>
+        </div>
+        <div class="user-area">
+            <span id="userDisplayName" style="color: #a9a9b4; font-size: 14px;"></span>
+            <button id="logoutBtn" class="btn subtle" style="display: none; padding: 8px 16px; font-size: 13px;">Logout</button>
+        </div>
+    </div>
+
+    <!-- App Page only - auth removed to run recommendations directly -->
+
+    <!-- App Page -->
+    <div id="appPage" style="display: none;">
+        <div class="container">
+            <div class="page-title">
+                <h1>Music Recommendations</h1>
+                <p>Find your favorite songs based on mood, genre, language & artist</p>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="card" style="margin-bottom: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 10px;">🔍 Quick Search</label>
+                <div style="position: relative;">
+                    <input type="text" id="searchInput" placeholder="Type artist/song (2+ letters)..." 
+                           style="width: 100%; background: #0f0f18; color: #f4f4f8; border: 1px solid #222230; border-radius: 10px; padding: 12px; font-size: 14px;" />
+                    <div id="searchDropdown" class="search-dropdown" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card filters">
+                <div class="filters-header">
+                    <h2>Filters</h2>
+                    <div class="right">
+                        <button class="btn subtle" onclick="clearFilters()" style="font-size: 12px;">Clear</button>
+                        <button class="btn primary" onclick="getRecommendations()" style="font-size: 12px;">Get Recommendations</button>
+                    </div>
+                </div>
+
+                <div class="grid two">
+                    <div>
+                        <label style="font-weight: 600;">Language</label>
+                        <div class="chips" id="langChips"></div>
+                    </div>
+                    <div>
+                        <label style="font-weight: 600;">Genre</label>
+                        <div class="chips" id="genreChips"></div>
+                    </div>
+                    <div>
+                        <label style="font-weight: 600;">Mood</label>
+                        <div class="chips" id="moodChips"></div>
+                    </div>
+                    <div>
+                        <label style="font-weight: 600;">Artist</label>
+                        <div class="chips" id="artistChips"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div>
+                <h2>Results</h2>
+                <div class="cards-grid" id="resultsGrid">
+                    <div class="empty" style="grid-column: 1 / -1; padding: 60px 20px; text-align: center;">
+                        <p style="font-size: 16px; margin: 0 0 8px;">No recommendations yet</p>
+                        <p style="font-size: 13px; color: #a9a9b4; margin: 0;">Select filters and click "Get Recommendations"</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p style="margin: 0;">Melodia © 2025 | Music Recommendation System</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            token: null,
+            user: null,
+            selectedLanguages: [],
+            selectedGenres: [],
+            selectedMoods: [],
+            selectedArtists: [],
+            recommendations: [],
+            allArtists: []  // Store all artists for quick search
+        };
+
+        const LANGS = ["English", "Spanish", "Hindi", "Korean", "Japanese", "French", "German"];
+        const GENRES = ["Pop", "Rock", "Hip Hop", "Jazz", "Classical", "Electronic", "R&B", "Country", "Indie", "Dance", "Alternative", "Funk"];
+        const MOODS = ["Happy", "Sad", "Energetic", "Chill", "Romantic", "Melancholic", "Intense", "Peaceful"];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Bypass login - show app directly
+            showAppPage();
+            initFilters();
+            loadAllArtists();
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
+            document.addEventListener('click', closeSearch);
+        });
+        
+        async function loadAllArtists() {
+            try {
+                        const res = await fetch('/api/artists', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            // token removed; artists endpoint is now public
+                            body: JSON.stringify({ })
+                        });
+                const data = await res.json();
+                if (data.success) {
+                    state.allArtists = data.artists;
+                }
+            } catch (e) {
+                console.error('Error loading artists:', e);
+            }
+        }
+
+        // Auth tabs removed
+
+        // auth removed: login handled clientless for this demo
+
+        // auth removed: signup is not required for demo
+
+        // no token verification - demo runs as guest
+
+        function showAppPage() {
+            // Show app page directly (auth removed)
+            document.getElementById('appPage').style.display = 'block';
+            document.getElementById('userDisplayName').textContent = `Welcome, Guest!`;
+            document.getElementById('logoutBtn').style.display = 'none';
+        }
+        // Token storage removed
+
+        async function handleSearch(e) {
+            const query = e.target.value.trim().toLowerCase();
+            const dropdown = document.getElementById('searchDropdown');
+
+            if (query.length < 2) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            // Quick local search through all artists (instant results)
+            const matchingArtists = state.allArtists.filter(artist => 
+                artist.toLowerCase().includes(query)
+            ).slice(0, 100);  // Show up to 100 matching artists
+
+            // Clear previous content
+            dropdown.innerHTML = '';
+            dropdown.style.display = 'block';
+
+            // Create container for artists
+            if (matchingArtists.length > 0) {
+                const artistsHeader = document.createElement('div');
+                artistsHeader.style.cssText = 'padding: 8px 14px 4px; color: #8b46ff; font-weight: 600; font-size: 12px; background: #1a1a26; position: sticky; top: 0; z-index: 10;';
+                artistsHeader.textContent = `ARTISTS (${matchingArtists.length})`;
+                dropdown.appendChild(artistsHeader);
+
+                matchingArtists.forEach(artist => {
+                    const item = document.createElement('div');
+                    item.className = 'search-item';
+                    item.textContent = artist;
+                    item.onclick = () => selectArtist(artist);
+                    dropdown.appendChild(item);
+                });
+            }
+
+            // Also search for songs on server (for song titles)
+            let hasSongs = false;
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await res.json();
+                if (data.success && data.songs && data.songs.length > 0) {
+                    hasSongs = true;
+                    const songsHeader = document.createElement('div');
+                    songsHeader.style.cssText = 'padding: 8px 14px 4px; color: #8b46ff; font-weight: 600; font-size: 12px; background: #1a1a26; position: sticky; top: 0; z-index: 10; margin-top: ' + (matchingArtists.length > 0 ? '8px' : '0') + ';';
+                    songsHeader.textContent = `SONGS (${data.songs.length})`;
+                    dropdown.appendChild(songsHeader);
+
+                    data.songs.forEach(s => {
+                        const item = document.createElement('div');
+                        item.className = 'search-item';
+                        item.textContent = s.title + ' - ' + s.artist;
+                        item.onclick = () => selectArtist(s.artist);
+                        dropdown.appendChild(item);
+                    });
+                }
+            } catch (e) {
+                console.error('Error searching songs:', e);
+            }
+
+            // Show "No results" only if there are no artists and no songs
+            if (matchingArtists.length === 0 && !hasSongs) {
+                const noResults = document.createElement('div');
+                noResults.className = 'search-item';
+                noResults.style.color = '#a9a9b4';
+                noResults.textContent = 'No results';
+                dropdown.appendChild(noResults);
+            }
+        }
+
+        function closeSearch(e) {
+            const dropdown = document.getElementById('searchDropdown');
+            if (!dropdown.contains(e.target) && e.target.id !== 'searchInput') {
+                dropdown.style.display = 'none';
+            }
+        }
+
+        function selectArtist(artist) {
+            if (!state.selectedArtists.includes(artist)) {
+                state.selectedArtists.push(artist);
+            }
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchDropdown').style.display = 'none';
+            updateArtistChips();
+        }
+
+        function initFilters() {
+            renderChips('langChips', LANGS, 'language');
+            renderChips('genreChips', GENRES, 'genre');
+            renderChips('moodChips', MOODS, 'mood');
+        }
+
+        function renderChips(id, items, type) {
+            document.getElementById(id).innerHTML = items.map(item => `
+                <div class="chip" onclick="toggleFilter('${type}', '${item}')">${item}</div>
+            `).join('');
+        }
+
+        function toggleFilter(type, value) {
+            const arr = type === 'language' ? state.selectedLanguages :
+                        type === 'genre' ? state.selectedGenres :
+                        type === 'mood' ? state.selectedMoods : [];
+
+            const idx = arr.indexOf(value);
+            if (idx > -1) arr.splice(idx, 1);
+            else arr.push(value);
+
+            updateChipUI(type);
+        }
+
+        function updateChipUI(type) {
+            const arr = type === 'language' ? state.selectedLanguages :
+                        type === 'genre' ? state.selectedGenres :
+                        type === 'mood' ? state.selectedMoods : [];
+
+            const items = type === 'language' ? LANGS :
+                          type === 'genre' ? GENRES :
+                          type === 'mood' ? MOODS : [];
+
+            const id = type === 'language' ? 'langChips' :
+                       type === 'genre' ? 'genreChips' : 'moodChips';
+
+            document.getElementById(id).innerHTML = items.map(item => `
+                <div class="chip ${arr.includes(item) ? 'selected' : ''}" onclick="toggleFilter('${type}', '${item}')">${item}</div>
+            `).join('');
+        }
+
+        function updateArtistChips() {
+            document.getElementById('artistChips').innerHTML = state.selectedArtists.map(a => `
+                <div class="chip selected">${a} <span onclick="removeArtist('${a.replace(/'/g, "\\'")}')" style="margin-left: 6px; cursor: pointer;">✕</span></div>
+            `).join('');
+        }
+
+        function removeArtist(artist) {
+            state.selectedArtists = state.selectedArtists.filter(a => a !== artist);
+            updateArtistChips();
+        }
+
+        async function getRecommendations() {
+            try {
+                const res = await fetch('/api/recommend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        languages: state.selectedLanguages,
+                        genres: state.selectedGenres,
+                        moods: state.selectedMoods,
+                        artists: state.selectedArtists
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    state.recommendations = data.recommendations;
+                    renderRecommendations();
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function renderRecommendations() {
+            const grid = document.getElementById('resultsGrid');
+
+            if (state.recommendations.length === 0) {
+                grid.innerHTML = '<div class="empty" style="grid-column: 1 / -1; padding: 60px 20px; text-align: center;"><p style="font-size: 16px; margin: 0 0 8px;">No tracks found</p><p style="font-size: 13px; color: #a9a9b4; margin: 0;">Try adjusting your filters</p></div>';
+                return;
+            }
+
+            // Calculate percentage from score or use percentage field if available
+            const getPercentage = (track) => {
+                if (track.percentage !== undefined) {
+                    return Math.round(track.percentage);
+                }
+                if (track.score !== undefined) {
+                    return Math.round(track.score * 100);
+                }
+                return 0;
+            };
+
+            grid.innerHTML = state.recommendations.map(t => {
+                const percentage = getPercentage(t);
+                return `
+                <div class="card track" style="background: linear-gradient(135deg, #2a1a4a 0%, #1a0a2a 100%);">
+                    <div class="track-header">
+                        <div class="track-title-section">
+                            <p class="track-title">${t.title}</p>
+                            <p class="track-artist">${t.artist}</p>
+                        </div>
+                        <span class="badge">${percentage}%</span>
+                    </div>
+                    <div class="content">
+                        <div class="track-info-row"><span class="info-label">Genre</span><span class="genre-chip">${t.genre}</span></div>
+                        <div class="track-info-row"><span class="info-label">Language</span><span class="info-value" style="font-weight: 600;">${t.language}</span></div>
+                        <div class="track-info-row"><span class="info-label">Mood</span><span class="mood-chip">${t.mood}</span></div>
+                        <div class="track-info-row"><span class="info-label">BPM</span><span class="info-value">${t.bpm}</span></div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        // logout removed (no authentication)
+
+        function clearFilters() {
+            state.selectedLanguages = [];
+            state.selectedGenres = [];
+            state.selectedMoods = [];
+            state.selectedArtists = [];
+            updateChipUI('language');
+            updateChipUI('genre');
+            updateChipUI('mood');
+            updateArtistChips();
+        }
+    </script>
+</body>
+</html>
+
+
+
